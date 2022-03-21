@@ -1,9 +1,7 @@
 ﻿W3230-STM8s105c6 USER MANUAL<br>
 =====================
 
-Emile
-
-© 2022
+© 2022 Emile
 
 # Changelog
 
@@ -15,16 +13,15 @@ Emile
 * Minutes or hours time-base selectable with **Hrs** parameter
 * PID-controller selectable with adjustable **Kc**, **Ti**, **Td** and **Ts** parameters
 * PID-output signal (slow PWM, T=12.5 sec) present at **SSR output** for connection to a Solid-State Relay (SSR) to control heating
-* Second temperature probe functionality selectable with **Pb2** parameter. If **Pb2** is set to 0, no second temperature probe is connected.
- ..+ With **Pb2** set to 1, the second temperature probe should measure the outside temperature. Used in thermostat control.
+* Second temperature probe functionality selectable with **Pb2** parameter. If **Pb2** is set to 0, no second temperature probe is connected. With **Pb2** set to 1, the second temperature probe should measure the outside temperature. Used in thermostat control.
 * Up to 6 profiles with up to 10 setpoints and durations
 * Each setpoint can be held for 1-999 hours (i.e. up to ~41 days) or 1-999 minutes (i.e. up to ~16 hours)
 * Approximative ramping
 * Somewhat intuitive menus for configuring
 * Separate delay settings for cooling and heating
-* Configurable hysteresis (allowable temp swing) from 0.0 to 2.5°C or 0.0 to 5.0°F
+* Configurable hysteresis (allowable temp swing) from 0.0 to 2.5 °C or 0.0 to 5.0 °F
 * User definable alarm when temperature is out of or within range
-* Easy displaying of setpoint, thermostat/PID-mode, actual temperature (default), 2nd temperature and PID-output (%)
+* Easy displaying of setpoint, thermostat/profile-mode, actual temperature (default), 2nd temperature and PID-output (%)
 
 # Using the W3230-STM8 firmware
 
@@ -43,7 +40,7 @@ The menu is divided in two steps. When first pressing 'SET', the following choic
 |Pr3|Set parameters for profile 3|
 |Pr4|Set parameters for profile 4|
 |Pr5|Set parameters for profile 5|
-|Set|Settings menu|
+|Par|Parameter settings menu|
 *Table 2: Menu items*
 
 Selecting one of the profiles enters the submenu for that profile.
@@ -85,8 +82,8 @@ The settings menu has the following items:
 |Td|Td parameter for PID-controller in seconds|0 to 9999|
 |Ts|Ts parameter for PID-controller in seconds|0 to 9999|
 |FAn|Fan control enable|0 = off, 1 = on|
-|FLo|Hysteresis Lower-limit value for Fan control|-40 to 140°C or -40 to 250°F|
-|FHI|Hysteresis Upper-limit value for Fan control|-40 to 140°C or -40 to 250°F|
+|FLo|Hysteresis Lower-limit value for Fan control|-40 to 140 °C or -40 to 250°F|
+|FHI|Hysteresis Upper-limit value for Fan control|-40 to 140 °C or -40 to 250°F|
 |rn|Set run mode|Pr0 to Pr5 and th(ermostat)|
 *Table 4: Settings sub-menu items*
 
@@ -140,7 +137,7 @@ With thermostat control, the setpoint *SP*, will not change and the controller w
 
 ## PID-Control
 
-When the **Ts** parameter is set to a value > 0, the PID-controller is enabled and works in parallel with the thermostat control. The PID-controller uses a sophisticated algorithm (a Takahashi Type C velocity algorithm) where the new output value is based upon the previous output value. The derivation of the algorithm for this controller is given in the .pdf document [PID Controller Calculus](./PID_Controller_Calculus.pdf).
+When the **Ts** parameter is set to a value > 0, the PID-controller is enabled and works in parallel with the thermostat control. The PID-controller uses a sophisticated algorithm (a Takahashi Type C velocity algorithm) where the new output value is based upon the previous output value. The derivation of the algorithm for this controller is given in the .pdf document [PID Controller Calculus](./img/PID_Controller_Calculus.pdf).
 The PID-controller is controlled with the *proportional gain*, *integral time-constant*, *differential time-constant* and the *Sample-Time*. They all work closely together. For more information on how to select optimum settings for a PID-controller, please refer to http://www.vandelogt.nl/uk_regelen_pid.php
 
 The pid-output is a percentage between 0.0 and +100.0 %. It is in E-1 %, so a value of 123 actually means 12.3 %. This value can be seen by pressing the PWR button twice (one press shows the 2nd temperature probe, the 2nd press shows the pid-output percentage).  
@@ -179,7 +176,7 @@ Unfortunately, due to hardware limitations, true ramping (or true interpolation)
 
 Each step is divided into (at most) 64 substeps and on each substep, setpoint is updated by linear interpolation. The substeps only occur on one hour marks, so if the duration of the step is less than 64 hours, not all substeps will be used, if the duration is greater than 64 hours, setpoint will not be updated on every one hour mark, for example if duration is 192 hours (that is 8 days), setpoint will be updated every third hour).
 
-Note, that in order to keep a constant temperature with ramping enabled, an extra setpoint with the same value will be needed (STC-1000p-STM8 will attempt to ramp between all setpoints, but if the setpoints are the same, then the setpoint will remain constant during the step).
+Note, that in order to keep a constant temperature with ramping enabled, an extra setpoint with the same value will be needed (W3230-STM8 will attempt to ramp between all setpoints, but if the setpoints are the same, then the setpoint will remain constant during the step).
 
 You can think of the ramping as being true, even if this approximation is being used, the only caveat is, if you need a long ramp (over several days or weeks) and require it to be smoother. Then you may need to split it over several steps.
 
@@ -190,7 +187,7 @@ Another tip would be to try to design your profiles with ramping in mind, if pos
 The idea is to use the secondary temperature probe to measure the fridge air temperature or the temperature of a smaller thermal mass (water or sand) in the fridge. This should respond faster to the temperature fluctuations than the beer. By carefully limiting how far this temperature is allowed to deviate from the setpoint, it should be possible to limit the over/under-shoot that can occur as the heater/cooler continues to operate until the beer has reached the setpoint.<br>
 The correct value for **hy2** will be dependent of the specific setup (and also the *hy* value) and will need to be set by trial and error or by analyzing how much over/under-shoot is seen and how far off setpoint the fridge temperature will go. This is a double edged sword, you do not want to set too tight hysteresis for the second temp probe as it will put more stress on the compressor and may make it harder to reach setpoint. But you also want to constrain it enough to be effective. Err on the safe side to begin with (using a larger **hy2** setting) and constrain it more as needed.
 
-It should also be noted, that it would be a very good idea to make sure the two temperature probes are calibrated (at least in respect to each other) around the setpoint. See table 4
+It should also be noted, that it would be a very good idea to make sure the two temperature probes are calibrated (at least in respect to each other) around the setpoint. See also table 4.
 
 To enable use of the second temp probe in the thermostat logic (i.e. to enable **hy2** limits on temperature2), set **Pb2** to 1. Even with with it disabled it is still possible to switch to display the second temperature input using a short press on the power button. 
 
@@ -210,6 +207,26 @@ By pressing and releasing the 'down' button, the controller cycles through the f
 * Temperature sensor 1 (the main sensor) is displayed in the upper display, the lower display will show the setpoint value. This is the default situation.
 * Temperature sensor 2 is displayed in the upper display, then the lower display shows 't2'.
 * One-wire temperature sensor: shows the temperature of the DS18B20 one-wire temperaturesensor. the lower display shows 'One'.
+* PID-output as a percentage.
+
+# UART / RS232 output
+
+RXD and TXD pins are available for connection to a serial port. Note that all voltages are 3.3 V level and baudrate is 57600 Baud.
+The following commands are available:
+* sp: setpoint. type **sp** to show the actual value of the setpoint variable. If you type sp=120, setpoint is set to 12.0 °C.
+* pid: pid-output, type **pid** to show the actual pid-output in E-1 %. Type **pid=250** to set pid-output to 25.0 %. Note that this overrules the pid-controller. You can reset this manual mode by typing **pid=-1**.
+* rb: type **rb 0123** to read a byte from memory location 0x123.
+* rw: type **rw 0123** to read a word from memory location 0x123.
+* wb: type **wb 0123 ab** to write byte 0xab into memory location 0x123.
+* ww: type **ww 0123 ab23** to write word 0xab23 into memory location 0x123.
+* s0: type **s0** to display the W3230 revision number
+* s1: type **s1** to display the results of a scan on the I2C-bus. The numbers displayed are the I2C addresses of actual devices found
+* s2: type **s2** to display all running tasks with the actual and maximum duration
+* s3: type **s3** to display the current value of the one-wire temperature sensor (a DS18B20), e.g. ds18b20_read(): 0, T= 23.5. The first number is the error-code (0 = no error), the second number the actual temperature read from the sensor.
+
+At power-up, the following info is displayed:
+* The current revision number
+* ds2482_detect: 1. A 1 returned here indicates that the I2C to One-Wire device (a DS2482) was found.
 
 # Development
 
@@ -218,16 +235,13 @@ W3230-STM8 is written in C and compiled using IAR STM8 embedded workbench v3.10.
 ## Useful tips for development
 
 * You will need the STM8S105C6 reference-manual (the datasheet merely lists the hardware related issues).
-
 * The IAR IDE organises the source-files in projects (.ewp) and workspaces (.eww). Use only 1 project per workspace. The default workspace file for W3230-STM8 is w3230_stm8s105.eww.
-
 * A separate scheduler (non pre-emptive) has been added to address all timing issues. See the source files scheduler.c and scheduler.h
-
 * Hardware routines (interrupts, ADC, eeprom) have all been rewritten from scratch, other routines have been copied and adapted from the stc1000p github repository.
 
 # Other resources
 
-Project home at [Github](https://github.com/Emile666/W3230_stm8/)
+Project home at [Github](https://github.com/Emile666/W3230_stm8s105/)
 
 
 
