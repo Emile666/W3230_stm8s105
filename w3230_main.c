@@ -33,7 +33,7 @@
 #include "uart.h"
 
 // Version number for W3230 firmware
-char version[] = "W3230-stm8s105c6 V0.10\n";
+char version[] = "W3230-stm8s105c6 V0.11\n";
 
 // Global variables
 bool      ad_err1 = false; // used for adc range checking
@@ -52,6 +52,8 @@ uint8_t   temp1_ow_err = 0;  // 1 = Read error from DS18B20
 uint8_t   fan_ctrl = 0;      // 1 = Use one-wire sensor for FAN control
 bool      pid_sw = false;    // Switch for pid_out
 int16_t   pid_fx = 0;        // Fix-value for pid_out
+uint16_t  hp_lim;            // Heating-power limit for SSR & PID-controller
+uint16_t  hp_tot;            // Rated power for heating element
 
 // External variables, defined in other files
 extern uint8_t  top_10, top_1, top_01; // values of 10s, 1s and 0.1s
@@ -137,7 +139,7 @@ void multiplexer(void)
 /*-----------------------------------------------------------------------------
   Purpose  : This is the interrupt routine for the Timer 2 Overflow handler.
              It runs at 1 kHz and drives the scheduler and the multiplexer.
-             Measured timing: 1.8 usec and 26 usec duration (5.2 %).
+             Measured timing: 1.0 msec and 9 usec duration (9.1 %).
   Variables: -
   Returns  : -
   ---------------------------------------------------------------------------*/
@@ -250,8 +252,6 @@ void adc_task(void)
 {
   uint16_t temp;
   
-  __disable_interrupt();       // Disable interrups while reading buttons
-  //for (i = 0; i < 200; i++) ; // Disable to let input signal settle
   if (ad_ch)
   {  // Process NTC probe 1
      temp       = read_adc(AD_NTC1);
@@ -267,7 +267,6 @@ void adc_task(void)
      temp_ntc2 += eeprom_read_config(EEADR_MENU_ITEM(tc2));
   } // else
   ad_ch = !ad_ch;
-  __enable_interrupt();     // Re-enable Interrupts
 } // adc_task()
 
 /*-----------------------------------------------------------------------------
@@ -280,8 +279,8 @@ void adc_task(void)
 void pid_to_time(void)
 {
     static uint8_t std_ptt = 1; // state [on, off]
-    static uint8_t ltmr    = 0; // #times to set S3 to 0
-    static uint8_t htmr    = 0; // #times to set S3 to 1
+    static uint8_t ltmr    = 0; // #times to set SSR to 0
+    static uint8_t htmr    = 0; // #times to set SSR to 1
     uint16_t x;                 // temp. variable
      
     x = pid_out >> 3; // divide by 8 to give 1.25 * pid_out
@@ -325,7 +324,7 @@ void std_task(void)
 /*-----------------------------------------------------------------------------
   Purpose  : This task is called every second and contains the main control
              task for the device. It also calls temperature_control() / 
-             pid_ctrl() and is used to drive the 433 MHZ transmitter FSM.
+             pid_ctrl() and one_wire_task().
   Variables: -
   Returns  : -
   ---------------------------------------------------------------------------*/
@@ -400,7 +399,7 @@ void ctrl_task(void)
        } // if
        // Thermostat control and PID-control
        temperature_control(temp); // Run thermostat control logic
-       if (ts == 0)               // PID Ts parameter is 0?
+       if (ts == 0) // PID Ts parameter is 0?
             pid_out = 0;          // Disable PID-output
        else pid_control(temp);    // Run PID controller in parallel with thermostat
        // --------- Manual switch/fix for pid-output --------------------
@@ -536,8 +535,8 @@ int main(void)
         dispatch_tasks();     // Run task-scheduler()
         switch (rs232_command_handler()) // run command handler continuously
         {
-            case ERR_CMD: xputs("Command Error\n"); break;
-            case ERR_NUM: sprintf(s,"Number Error (%s)\n",rs232_inbuf);
+            case ERR_CMD: xputs("Cmd Error\n"); break;
+            case ERR_NUM: sprintf(s,"Nr Error (%s)\n",rs232_inbuf);
                           xputs(s);  
                           break;
             default     : break;

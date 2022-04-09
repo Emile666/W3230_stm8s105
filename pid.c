@@ -30,16 +30,23 @@
 */
 #include "pid.h"
 
-uint16_t kc = 0;   // Parameter value for Kc value in %/°C
-uint16_t ti = 0;   // Parameter value for I action in seconds
-uint16_t td = 0;   // Parameter value for D action in seconds
+int16_t kc = 0;   // Parameter value for Kc value in %/°C
+int16_t ti = 0;   // Parameter value for I action in seconds
+int16_t td = 0;   // Parameter value for D action in seconds
+int32_t kpi;      // Internal P-action result for debugging
+int32_t kii;      // Internal I-action result for debugging
+int32_t kdi;      // Internal D-action result for debugging
+
 // Init ts to 0 to disable pid-control and enable thermostat control
 uint8_t  ts = 0;   // Parameter value for sample time [sec.]
-uint32_t ki;       // Internal value for I action
-uint32_t kd;       // Internal value for D action
+int32_t  ki;       // Internal value for I action
+int32_t  kd;       // Internal value for D action
 int32_t  pp;       // debug
 int16_t  yk_1;     // y[k-1]
 int16_t  yk_2;     // y[k-2]
+float    kif;
+float    kdf;
+float    ppf;
 
 void init_pid(uint16_t kc, uint16_t ti, uint16_t td, uint8_t ts, uint16_t yk)
 /*------------------------------------------------------------------
@@ -62,15 +69,26 @@ void init_pid(uint16_t kc, uint16_t ti, uint16_t td, uint8_t ts, uint16_t yk)
   Returns  : No values are returned
   ------------------------------------------------------------------*/
 {
-   if (ti == 0) ki = 0;
-   else         ki = (((uint32_t)kc * ts) / ti);
-   if (ts == 0) kd = 0;
-   else         kd = (((uint32_t)kc * td) / ts);
-   
+   if (ti == 0) 
+   {
+       ki  = 0;
+   } // if
+   else 
+   {
+       ki = (int32_t)(((float)kc * ts / ti) + 0.5);
+   } // else
+   if (ts == 0) 
+   {
+       kd  = 0;
+   } // if
+   else
+   {
+       kd = (int32_t)(((float)kc * td / ts) +0.5);
+   } // else
    yk_2 = yk_1 = yk; // init. previous samples to current temperature
 } // init_pid()
 
-void pid_ctrl(int16_t yk, int16_t *uk, uint16_t tset)
+void pid_ctrl(int16_t yk, int16_t *uk, int16_t tset, int16_t lim)
 /*------------------------------------------------------------------
   Purpose  : This function implements the Takahashi Type C PID
              controller: the P and D term are no longer dependent
@@ -80,6 +98,7 @@ void pid_ctrl(int16_t yk, int16_t *uk, uint16_t tset)
         yk : The input variable y[k] (= measured temperature in E-1 °C)
        *uk : The pid-output variable u[k] [-1000..+1000] in E-1 %
       tset : The setpoint value w[k] for the temperature in E-1 °C
+      lim  : Upper-limit for *uk in E-1 %
   Returns  : No values are returned
   ------------------------------------------------------------------*/
 {
@@ -92,16 +111,15 @@ void pid_ctrl(int16_t yk, int16_t *uk, uint16_t tset)
     //                                      Ti           Ts
     //
     //-----------------------------------------------------------------------------
-    pp   = (uint32_t)kc * (yk_1 - yk);               // Kc.(y[k-1]-y[k])
-    pp  += (uint32_t)ki * (tset - yk);               // (Kc.Ts/Ti).e[k]
-    pp  += (uint32_t)kd * ((yk_1 << 1) - yk - yk_2); // (Kc.Td/Ts).(2.y[k-1]-y[k]-y[k-2])
-    *uk += (int16_t)pp;
-    // limit u[k] to PID_OUT_HLIM and PID_OUT_LLIM
-    if (*uk > PID_OUT_HLIM)      *uk = PID_OUT_HLIM;
-    else if (*uk < PID_OUT_LLIM) *uk = PID_OUT_LLIM;
+    kpi  = (int32_t)kc * (yk_1 - yk);               // Kc.(y[k-1]-y[k])
+    kii  = (int32_t)ki * (tset - yk);               // (Kc.Ts/Ti).e[k]
+    kdi  = (int32_t)kd * ((yk_1 << 1) - yk - yk_2); // (Kc.Td/Ts).(2.y[k-1]-y[k]-y[k-2])
+    *uk += (int16_t)(kpi + kii + kdi);
+    // limit u[k] to lim and 0
+    if (*uk > lim)    *uk = lim;
+    else if (*uk < 0) *uk = 0;
 
     yk_2  = yk_1; // y[k-2] = y[k-1]
     yk_1  = yk;   // y[k-1] = y[k]
 } // pid_ctrl()
-
 

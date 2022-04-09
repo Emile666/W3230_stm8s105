@@ -22,16 +22,10 @@
 #define PID_REG_H
 #include <stdint.h>
 
-// PID controller upper & lower limit [E-1 %]
-// Set PID_OUT_LLIM to 0 if PID should only control heating
-// Set PID_OUT_LLIM to -1000 if PID should also control cooling
-#define PID_OUT_HLIM ( 1000)
-#define PID_OUT_LLIM (    0)
-
 //--------------------
 // Function Prototypes
 //--------------------
 void init_pid(uint16_t kc, uint16_t ti, uint16_t td, uint8_t ts, uint16_t yk);
-void pid_ctrl(int16_t yk, int16_t *uk, uint16_t tset);
+void pid_ctrl(int16_t yk, int16_t *uk, int16_t tset, int16_t lim);
 
 #endif

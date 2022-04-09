@@ -190,7 +190,7 @@ uint8_t execute_single_command(char *s)
                } // else
            } // if
            xputs("pid_out=");
-           print_value10(pid_sw ? pid_fx : pid_out);
+           print_value10(pid_fx);
        } // else if
        else if (!strcmp(s3,"rb"))
        {   // Read Byte

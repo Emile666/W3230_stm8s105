@@ -251,7 +251,7 @@ void list_all_tasks(void)
 		{
             xputs(task_list[index].Name);
             
-            sprintf(s,",%d,0x%x,%d,%d\n", 
+            sprintf(s,",%u,0x%x,%d,%d\n", 
                       task_list[index].Period  , (uint16_t)task_list[index].Status, 
                       task_list[index].Duration, task_list[index].Duration_Max);
 	    xputs(s);

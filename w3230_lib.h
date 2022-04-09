@@ -48,16 +48,17 @@
 
 // Default values
 #define DEFAULT_SP	   (200)
-#define DEFAULT_hy	    (50)
-#define DEFAULT_hy2	   (100)
+#define DEFAULT_hy	    (10)
+#define DEFAULT_hy2	    (50)
 
 //---------------------------------------------------------------------------
 // Basic defines for EEPROM config addresses
-// One profile consists of several temp. time pairs and a final temperature
+// One profile consists of several temp. time pairs and a final temperature.
+// The STM8S105C6 has 1024 EEPROM bytes.
 //
 // Do NOT Forget to set:
-// 1) proper #include in stc1000p.h: <iostm8s003f3.h> or <iostm8s103f3.h>
-// 2) Project -> Options -> Target -> Device to STM8S003F3 or STM8S103F3
+// 1) proper #include in w3230_main.h: <iostm8s105c6.h>
+// 2) Project -> Options -> Target -> Device to STM8S105C6
 //---------------------------------------------------------------------------
 #define NO_OF_PROFILES	 (6)
 #define NO_OF_TT_PAIRS   (9)
@@ -116,16 +117,18 @@ enum e_item_type
 // td   Td parameter for PID controller in seconds    0..9999 
 // ts   Ts parameter for PID controller in seconds    0..9999, 0 = disable PID controller = thermostat control
 // Fan  Use one-wire sensor for compressor fan control 0 = disable, 1 = use 1W for compressor fan control
-// FL   Lower-limit temperature for fan control       0.0 to 99.9 °C
-// FH   Higher-limit temperature for fan control      0.0 to 99.9 °C
+// FLo  Lower-limit temperature for fan control       0.0 to 99.9 °C
+// FHi  Higher-limit temperature for fan control      0.0 to 99.9 °C
+// HPL  Heating Power Limit for SSR in Watts          0 to 9999 W
+// HPt  Power Rating for heating element in Watts     0 to 9999 W
 // rn	Set run mode	                              Pr0 to Pr5 and th (6)
 //-----------------------------------------------------------------------------
 #define MENU_DATA(_) \
 	_(SP, 	LED_S, 	LED_P, 	LED_OFF, t_temperature,	DEFAULT_SP)	\
 	_(hy, 	LED_h, 	LED_y, 	LED_OFF, t_hyst_1,	DEFAULT_hy) 	\
 	_(hy2, 	LED_h, 	LED_y, 	LED_2, 	 t_hyst_2, 	DEFAULT_hy2)	\
-	_(tc, 	LED_t, 	LED_c, 	LED_OFF, t_tempdiff,	3)		\
-	_(tc2, 	LED_t, 	LED_c, 	LED_2, 	 t_tempdiff,	-2)		\
+	_(tc, 	LED_t, 	LED_c, 	LED_OFF, t_tempdiff,	0)		\
+	_(tc2, 	LED_t, 	LED_c, 	LED_2, 	 t_tempdiff,	0)		\
 	_(SA, 	LED_S, 	LED_A, 	LED_OFF, t_sp_alarm,	0)		\
 	_(St, 	LED_S, 	LED_t, 	LED_OFF, t_step,	0)		\
 	_(dh, 	LED_d, 	LED_h, 	LED_OFF, t_duration,	0)		\
@@ -137,11 +140,13 @@ enum e_item_type
 	_(HrS, 	LED_H, 	LED_r, 	LED_S, 	 t_boolean,	1)		\
 	_(Hc, 	LED_H, 	LED_c, 	LED_OFF, t_parameter,	80)		\
 	_(Ti, 	LED_t, 	LED_I, 	LED_OFF, t_parameter,  280)		\
-	_(Td, 	LED_t, 	LED_d, 	LED_OFF, t_parameter,   20)		\
-	_(Ts, 	LED_t, 	LED_S, 	LED_OFF, t_parameter,    0)		\
+	_(Td, 	LED_t, 	LED_d, 	LED_OFF, t_parameter,    5)		\
+	_(Ts, 	LED_t, 	LED_S, 	LED_OFF, t_parameter,   10)		\
 	_(FAn, 	LED_F, 	LED_A, 	LED_n,   t_parameter,    1)		\
 	_(FLo, 	LED_F, 	LED_L, 	LED_o,   t_temperature,	300)	        \
 	_(FHI, 	LED_F, 	LED_H, 	LED_I,   t_temperature,	350)	        \
+	_(HPL, 	LED_H, 	LED_P, 	LED_L,   t_parameter,	150)	        \
+	_(HPt, 	LED_H, 	LED_P, 	LED_t,   t_parameter,	500)	        \
 	_(rn, 	LED_r, 	LED_u, 	LED_n,   t_runmode,     NO_OF_PROFILES)
 
 #define ENUM_VALUES(name,led10ch,led1ch,led01ch,type,default_value) name,

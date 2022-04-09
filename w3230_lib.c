@@ -24,6 +24,8 @@
 #include <intrinsics.h>
 #include "w3230_lib.h"
 #include "pid.h"
+#include "uart.h"
+#include <stdio.h>
 
 // LED character lookup table (0-9)
 const uint8_t led_lookup[] = {LED_0,LED_1,LED_2,LED_3,LED_4,LED_5,LED_6,LED_7,LED_8,LED_9};
@@ -33,7 +35,7 @@ const uint8_t led_lookup[] = {LED_0,LED_1,LED_2,LED_3,LED_4,LED_5,LED_6,LED_7,LE
 //----------------------------------------------------------------------------
 __root __eeprom const int16_t eedata[] =
 {
-    // STM8S103F3 with 640 bytes EEPROM
+    // STM8S105C6 with 1024 bytes EEPROM
    160, 24, 170, 24, 180, 24, 190, 24, 200, 144, 250, 48, 40, 0, 0, 0, 0, 0, 0, // Pr0 (SP0, dh0, ..., dh8, SP9)
    160, 24, 170, 24, 180, 24, 190, 24, 200, 144, 250, 48, 40, 0, 0, 0, 0, 0, 0, // Pr1 (SP0, dh0, ..., dh8, SP9)
    160, 24, 170, 24, 180, 24, 190, 24, 200, 144, 250, 48, 40, 0, 0, 0, 0, 0, 0, // Pr2 (SP0, dh0, ..., dh8, SP9)
@@ -65,6 +67,7 @@ uint8_t  sensor2_selected = 0;  // DOWN button pressed < 3 sec. shows 2nd temper
 int16_t  setpoint;              // local copy of SP variable
 uint16_t curr_dur = 0;          // local counter for temperature duration
 int16_t  pid_out  = 0;          // Output from PID controller in E-1 %
+int16_t  pid_lim = 0;           // PID output upper limit in E-1 %
 int16_t  hysteresis;            // th-mode: hysteresis for temp probe ; pid-mode: lower hyst. limit in E-1 %
 int16_t  hysteresis2;           // th-mode: hysteresis for 2nd temp probe ; pid-mode: upper hyst. limit in E-1 %
 
@@ -72,11 +75,14 @@ int16_t  hysteresis2;           // th-mode: hysteresis for 2nd temp probe ; pid-
 extern bool     probe2;    // cached flag indicating whether 2nd probe is active
 extern int16_t  temp_ntc1; // The temperature in E-1 °C from NTC probe 1
 extern int16_t  temp_ntc2; // The temperature in E-1 °C from NTC probe 2
-extern uint16_t kc;        // Parameter value for Kc value in %/°C
-extern uint16_t ti;        // Parameter value for I action in seconds
-extern uint16_t td;        // Parameter value for D action in seconds
+extern int16_t  kc;        // Parameter value for Kc value in %/°C
+extern int16_t  ti;        // Parameter value for I action in seconds
+extern int16_t  td;        // Parameter value for D action in seconds
 extern uint8_t  ts;        // Parameter value for sample time [sec.]
 extern char     version[]; // Version info string
+extern uint16_t hp_lim;    // Heating-power limit for SSR & PID-controller
+extern uint16_t hp_tot;    // Rated power for heating element
+extern int32_t  kpi, kii, kdi;
 
 // This contains the definition of the menu-items for the parameters menu
 const struct s_menu menu[] = 
@@ -185,14 +191,19 @@ void value_to_led(int16_t value, uint8_t decimal, uint8_t row)
     uint8_t *p10, *p1, *p01; // pointers to 7-segment display values
     
     if (val < 0) 
-    {  // Handle negative values
-       val  = -val;
-       if (val >= 100) 
-       {
+    {   // Handle negative values
+        val  = -val;
+        if (val >= 100) 
+        {
           val = divu10(val); // loose the decimal
           decimal = 0;       // no decimal point 
-       } // if
+        } // if
     } // if
+    else if (val >= 1000)
+    {
+        val = divu10(val); // loose the decimal
+        decimal = 0;
+    } // else if
     val2 = val;
     
     if (row == ROW_TOP)
@@ -822,7 +833,7 @@ void temperature_control(int16_t temp)
     } // if
     else if (!HEAT_STATUS && !COOL_STATUS) 
     {
-        hysteresis2 >>= 2; // Divide hysteresis2 by 2
+        hysteresis2 >>= 1; // Divide hysteresis2 by 2
         if ((temp > setpoint + hysteresis) && (!probe2 || (temp_ntc2 >= setpoint - hysteresis2))) 
              enable_cooling(); // switch cooling relay
         else LED_COOL_OFF; // disable cooling led
@@ -855,10 +866,21 @@ void pid_control(int16_t temp)
         td = eeprom_read_config(EEADR_MENU_ITEM(Td));
         init_pid(kc,ti,td,ts,temp); // Init PID controller
     } // if
-    
+    if (hp_lim != eeprom_read_config(EEADR_MENU_ITEM(HPL)) ||
+        hp_tot != eeprom_read_config(EEADR_MENU_ITEM(HPt)))
+    {   // One of the heating element parameters have changed
+        hp_lim = eeprom_read_config(EEADR_MENU_ITEM(HPL));
+        hp_tot = eeprom_read_config(EEADR_MENU_ITEM(HPt));
+        if (hp_tot > 0)
+             pid_lim = (int16_t)((hp_lim * 1000L) / hp_tot);
+        else pid_lim = 1000;
+    } // if
     if (++pid_tmr >= ts) 
     {   // Call PID controller every TS seconds
-        pid_ctrl(temp,&pid_out,setpoint);
+        pid_ctrl(temp,&pid_out,setpoint,pid_lim);
+//        char s[30];
+//        sprintf(s,"%ld,%ld,%ld,%d\n",kpi,kii,kdi,pid_out);
+//        xputs(s);
         pid_tmr = 0;
     } // if
 } // pid_control()
