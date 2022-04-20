@@ -842,7 +842,7 @@ void temperature_control(int16_t temp)
         if ((temp > setpoint + hysteresis) && (!probe2 || (temp_ntc2 >= setpoint - hysteresis2))) 
              enable_cooling(); // switch cooling relay, disable heating
         else LED_COOL_OFF;     // disable cooling led
-        if ((temp < setpoint - hysteresis) && (probe2 || (temp_ntc2 <= setpoint + hysteresis2))) 
+        if ((temp < setpoint - hysteresis) && (!probe2 || (temp_ntc2 <= setpoint + hysteresis2))) 
             enable_heating(); // switch heating relay, disable cooling
         else LED_HEAT_OFF;    // disable heating led
     } // else if

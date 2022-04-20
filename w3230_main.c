@@ -33,7 +33,7 @@
 #include "uart.h"
 
 // Version number for W3230 firmware
-char version[] = "W3230-stm8s105c6 V0.12\n";
+char version[] = "W3230-stm8s105c6 V0.13\n";
 
 // Global variables
 bool      ad_err1 = false; // used for adc range checking
