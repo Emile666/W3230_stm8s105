@@ -35,7 +35,7 @@ extern uint8_t fan_ctrl;       // 1 = Use one-wire sensor instead of NTC probe 1
 extern int16_t pid_out;        // Output from PID controller in E-1 %
 extern bool    pid_sw;         // Switch for pid_out
 extern int16_t pid_fx;         // Fix-value for pid_out
-
+extern bool    logging;        // True = logging of PID info to UART
 char rs232_inbuf[UART_BUFLEN]; // buffer for RS232 commands
 uint8_t rs232_ptr = 0;         // index in RS232 buffer
 
@@ -215,6 +215,11 @@ uint8_t execute_single_command(char *s)
    {  // single letter command
       switch (s[0])
       {
+       case 'l': // Logging command
+               if (num)
+                    logging = true;
+               else logging = false;
+               break;
        case 's': // System commands
                switch (num)
                {

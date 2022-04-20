@@ -127,8 +127,8 @@ enum e_item_type
 	_(SP, 	LED_S, 	LED_P, 	LED_OFF, t_temperature,	DEFAULT_SP)	\
 	_(hy, 	LED_h, 	LED_y, 	LED_OFF, t_hyst_1,	DEFAULT_hy) 	\
 	_(hy2, 	LED_h, 	LED_y, 	LED_2, 	 t_hyst_2, 	DEFAULT_hy2)	\
-	_(tc, 	LED_t, 	LED_c, 	LED_OFF, t_tempdiff,	0)		\
-	_(tc2, 	LED_t, 	LED_c, 	LED_2, 	 t_tempdiff,	0)		\
+	_(tc, 	LED_t, 	LED_c, 	LED_OFF, t_tempdiff,	-8)		\
+	_(tc2, 	LED_t, 	LED_c, 	LED_2, 	 t_tempdiff,	-1)		\
 	_(SA, 	LED_S, 	LED_A, 	LED_OFF, t_sp_alarm,	0)		\
 	_(St, 	LED_S, 	LED_t, 	LED_OFF, t_step,	0)		\
 	_(dh, 	LED_d, 	LED_h, 	LED_OFF, t_duration,	0)		\
@@ -139,9 +139,9 @@ enum e_item_type
 	_(Pb2, 	LED_P, 	LED_b, 	LED_2, 	 t_boolean,	0)		\
 	_(HrS, 	LED_H, 	LED_r, 	LED_S, 	 t_boolean,	1)		\
 	_(Hc, 	LED_H, 	LED_c, 	LED_OFF, t_parameter,	80)		\
-	_(Ti, 	LED_t, 	LED_I, 	LED_OFF, t_parameter,  280)		\
-	_(Td, 	LED_t, 	LED_d, 	LED_OFF, t_parameter,    5)		\
-	_(Ts, 	LED_t, 	LED_S, 	LED_OFF, t_parameter,   10)		\
+	_(Ti, 	LED_t, 	LED_I, 	LED_OFF, t_parameter,  140)		\
+	_(Td, 	LED_t, 	LED_d, 	LED_OFF, t_parameter,   10)		\
+	_(Ts, 	LED_t, 	LED_S, 	LED_OFF, t_parameter,   20)		\
 	_(FAn, 	LED_F, 	LED_A, 	LED_n,   t_parameter,    1)		\
 	_(FLo, 	LED_F, 	LED_L, 	LED_o,   t_temperature,	300)	        \
 	_(FHI, 	LED_F, 	LED_H, 	LED_I,   t_temperature,	350)	        \

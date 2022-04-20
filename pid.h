@@ -21,11 +21,12 @@
 #ifndef PID_REG_H
 #define PID_REG_H
 #include <stdint.h>
+#include <stdbool.h>
 
 //--------------------
 // Function Prototypes
 //--------------------
 void init_pid(uint16_t kc, uint16_t ti, uint16_t td, uint8_t ts, uint16_t yk);
-void pid_ctrl(int16_t yk, int16_t *uk, int16_t tset, int16_t lim);
+void pid_ctrl(int16_t yk, int16_t *uk, int16_t tset, int16_t lim, bool ena);
 
 #endif

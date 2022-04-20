@@ -68,8 +68,10 @@ int16_t  setpoint;              // local copy of SP variable
 uint16_t curr_dur = 0;          // local counter for temperature duration
 int16_t  pid_out  = 0;          // Output from PID controller in E-1 %
 int16_t  pid_lim = 0;           // PID output upper limit in E-1 %
+bool     pid_ena = false;       // True = PID controller enabled
 int16_t  hysteresis;            // th-mode: hysteresis for temp probe ; pid-mode: lower hyst. limit in E-1 %
 int16_t  hysteresis2;           // th-mode: hysteresis for 2nd temp probe ; pid-mode: upper hyst. limit in E-1 %
+bool     logging = false;       // True = logging of PID info to UART
 
 // External variables, defined in other files
 extern bool     probe2;    // cached flag indicating whether 2nd probe is active
@@ -351,51 +353,51 @@ int16_t check_config_value(int16_t config_value, uint8_t eeadr)
     
     if (eeadr < EEADR_MENU)
     {   // One of the Profiles
-	      while (eeadr >= PROFILE_SIZE)
+        while (eeadr >= PROFILE_SIZE)
         {   // Find the eeprom address within a profile
             eeadr -= PROFILE_SIZE;
-				} // while
-	      if (!(eeadr & 0x1))
+        } // while
+        if (!(eeadr & 0x1))
         {   // Only constrain a temperature
-	          t_min = (fahrenheit ? TEMP_MIN_F : TEMP_MIN_C);
-	          t_max = (fahrenheit ? TEMP_MAX_F : TEMP_MAX_C);
-	      } // if
-		} else { // Parameter menu
+            t_min = (fahrenheit ? TEMP_MIN_F : TEMP_MIN_C);
+            t_max = (fahrenheit ? TEMP_MAX_F : TEMP_MAX_C);
+        } // if
+    } else { // Parameter menu
         type = menu[eeadr - EEADR_MENU].type;
-   	    if (type == t_temperature)
+        if (type == t_temperature)
         {
-	          t_min = (fahrenheit ? TEMP_MIN_F : TEMP_MIN_C);
-	          t_max = (fahrenheit ? TEMP_MAX_F : TEMP_MAX_C);
-	      } else if (type == t_tempdiff)
+            t_min = (fahrenheit ? TEMP_MIN_F : TEMP_MIN_C);
+            t_max = (fahrenheit ? TEMP_MAX_F : TEMP_MAX_C);
+        } else if (type == t_tempdiff)
         {   // the temperature correction variables
-	          t_min = (fahrenheit ? TEMP_CORR_MIN_F : TEMP_CORR_MIN_C);
-	          t_max = (fahrenheit ? TEMP_CORR_MAX_F : TEMP_CORR_MAX_C);
-	      } else if (type == t_parameter)
-	      {
-		        t_max = 9999;
-	      } else if (type == t_boolean)
+            t_min = (fahrenheit ? TEMP_CORR_MIN_F : TEMP_CORR_MIN_C);
+            t_max = (fahrenheit ? TEMP_CORR_MAX_F : TEMP_CORR_MAX_C);
+        } else if (type == t_parameter)
+        {
+            t_max = 9999;
+        } else if (type == t_boolean)
         {   // the control variables
-	          t_max = 1;
-	      } else if (type == t_hyst_1)
+            t_max = 1;
+        } else if (type == t_hyst_1)
         {
-	          t_max = (fahrenheit ? TEMP_HYST_1_MAX_F : TEMP_HYST_1_MAX_C);
-	      } else if (type == t_hyst_2)
+            t_max = (fahrenheit ? TEMP_HYST_1_MAX_F : TEMP_HYST_1_MAX_C);
+        } else if (type == t_hyst_2)
         {
-	          t_max = (fahrenheit ? TEMP_HYST_2_MAX_F : TEMP_HYST_2_MAX_C);
-	      } else if (type == t_sp_alarm)
+            t_max = (fahrenheit ? TEMP_HYST_2_MAX_F : TEMP_HYST_2_MAX_C);
+        } else if (type == t_sp_alarm)
         {
-	          t_min = (fahrenheit ? SP_ALARM_MIN_F : SP_ALARM_MIN_C);
-	          t_max = (fahrenheit ? SP_ALARM_MAX_F : SP_ALARM_MAX_C);
-	      } else if(type == t_step)
+            t_min = (fahrenheit ? SP_ALARM_MIN_F : SP_ALARM_MIN_C);
+            t_max = (fahrenheit ? SP_ALARM_MAX_F : SP_ALARM_MAX_C);
+        } else if(type == t_step)
         {
-	          t_max = NO_OF_TT_PAIRS;
-	      } else if (type == t_delay)
+            t_max = NO_OF_TT_PAIRS;
+        } else if (type == t_delay)
         {
-	          t_max = 60;
-	      } else if (type == t_runmode)
+            t_max = 60;
+        } else if (type == t_runmode)
         {
-	          t_max = NO_OF_PROFILES;
-	      } // else if
+            t_max = NO_OF_PROFILES;
+        } // else if
     } // else
     return range(config_value, t_min, t_max);
 } // check_config_value()
@@ -783,14 +785,15 @@ void init_temp_delays(void)
   ---------------------------------------------------------------------------*/
 void enable_cooling(void)
 {
-    LED_HEAT_OFF; // disable heating led
+    LED_HEAT_OFF;    // disable heating led
+    pid_ena = false; // disable PID controller
     if (cooling_delay) 
-         LED_COOL_INV; // Flash to indicate cooling delay
-     else
-     {   // time-out
-         COOL_ON; // Enable Cooling
-         LED_COOL_ON;
-     } // else
+        LED_COOL_INV; // Flash to indicate cooling delay
+    else
+    {   // time-out
+        COOL_ON; // Enable Cooling
+        LED_COOL_ON;
+    } // else
 } // enable_cooling()
 
 /*-----------------------------------------------------------------------------
@@ -801,13 +804,14 @@ void enable_cooling(void)
 void enable_heating(void)
 {
     LED_COOL_OFF; // disable cooling led
-     if (heating_delay) 
-         LED_HEAT_INV; // Flash to indicate heating delay
-     else
-     {   // time-out
-         HEAT_ON; // Enable Heating
-         LED_HEAT_ON;
-     } // else
+    if (heating_delay) 
+        LED_HEAT_INV; // Flash to indicate heating delay
+    else
+    {   // time-out
+        HEAT_ON; // Enable Heating
+        LED_HEAT_ON;
+        pid_ena = true; // Enable PID controller
+    } // else
 } // enable_heating()
 
 /*-----------------------------------------------------------------------------
@@ -827,19 +831,20 @@ void temperature_control(int16_t temp)
     {
         cooling_delay = min_to_sec(cd);
         heating_delay = min_to_sec(hd);
-        RELAYS_OFF;   // Disable Cooling and Heating relays
-        LED_COOL_OFF; // disable cooling led
-        LED_HEAT_OFF; // disable heating led
+        RELAYS_OFF;      // Disable Cooling and Heating relays
+        LED_COOL_OFF;    // disable cooling led
+        LED_HEAT_OFF;    // disable heating led
+        pid_ena = false; // disable PID controller
     } // if
     else if (!HEAT_STATUS && !COOL_STATUS) 
     {
         hysteresis2 >>= 1; // Divide hysteresis2 by 2
         if ((temp > setpoint + hysteresis) && (!probe2 || (temp_ntc2 >= setpoint - hysteresis2))) 
-             enable_cooling(); // switch cooling relay
-        else LED_COOL_OFF; // disable cooling led
+             enable_cooling(); // switch cooling relay, disable heating
+        else LED_COOL_OFF;     // disable cooling led
         if ((temp < setpoint - hysteresis) && (probe2 || (temp_ntc2 <= setpoint + hysteresis2))) 
-            enable_heating(); // switch heating relay
-        else LED_HEAT_OFF; // disable heating led
+            enable_heating(); // switch heating relay, disable cooling
+        else LED_HEAT_OFF;    // disable heating led
     } // else if
 } // temperature_control()
 
@@ -856,6 +861,7 @@ void temperature_control(int16_t temp)
 void pid_control(int16_t temp)
 {
     static uint8_t pid_tmr = 0;
+    char s[30];
     
     if (kc != eeprom_read_config(EEADR_MENU_ITEM(Hc)) ||
         ti != eeprom_read_config(EEADR_MENU_ITEM(Ti)) ||
@@ -877,10 +883,14 @@ void pid_control(int16_t temp)
     } // if
     if (++pid_tmr >= ts) 
     {   // Call PID controller every TS seconds
-        pid_ctrl(temp,&pid_out,setpoint,pid_lim);
-//        char s[30];
-//        sprintf(s,"%ld,%ld,%ld,%d\n",kpi,kii,kdi,pid_out);
-//        xputs(s);
+        pid_ctrl(temp,&pid_out,setpoint,pid_lim,pid_ena);
+        if (logging)
+        {
+            sprintf(s,"%s,err=%d,",pid_ena ? "On" : "Off",setpoint-temp);
+            xputs(s);
+            sprintf(s,"p=%ld,i=%ld,d=%ld,t=%d\n",kpi,kii,kdi,pid_out);
+            xputs(s);
+        } // if
         pid_tmr = 0;
     } // if
 } // pid_control()

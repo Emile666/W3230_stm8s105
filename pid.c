@@ -14,18 +14,18 @@
             Td: Time-constant for the Derivative Gain in seconds
             Ts: The sample period in seconds
   ------------------------------------------------------------------
-  STC1000+ is free software: you can redistribute it and/or modify
+  This file is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
  
-  STC1000+ is distributed in the hope that it will be useful,
+  This is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
  
   You should have received a copy of the GNU General Public License
-  along with STC1000+.  If not, see <http://www.gnu.org/licenses/>.
+  along with this file.  If not, see <http://www.gnu.org/licenses/>.
   ==================================================================
 */
 #include "pid.h"
@@ -88,7 +88,7 @@ void init_pid(uint16_t kc, uint16_t ti, uint16_t td, uint8_t ts, uint16_t yk)
    yk_2 = yk_1 = yk; // init. previous samples to current temperature
 } // init_pid()
 
-void pid_ctrl(int16_t yk, int16_t *uk, int16_t tset, int16_t lim)
+void pid_ctrl(int16_t yk, int16_t *uk, int16_t tset, int16_t lim, bool ena)
 /*------------------------------------------------------------------
   Purpose  : This function implements the Takahashi Type C PID
              controller: the P and D term are no longer dependent
@@ -96,7 +96,7 @@ void pid_ctrl(int16_t yk, int16_t *uk, int16_t tset, int16_t lim)
              This function should be called once every TS seconds.
   Variables:
         yk : The input variable y[k] (= measured temperature in E-1 °C)
-       *uk : The pid-output variable u[k] [-1000..+1000] in E-1 %
+       *uk : The pid-output variable u[k] [0..+1000] in E-1 %
       tset : The setpoint value w[k] for the temperature in E-1 °C
       lim  : Upper-limit for *uk in E-1 %
   Returns  : No values are returned
@@ -111,14 +111,18 @@ void pid_ctrl(int16_t yk, int16_t *uk, int16_t tset, int16_t lim)
     //                                      Ti           Ts
     //
     //-----------------------------------------------------------------------------
-    kpi  = (int32_t)kc * (yk_1 - yk);               // Kc.(y[k-1]-y[k])
-    kii  = (int32_t)ki * (tset - yk);               // (Kc.Ts/Ti).e[k]
-    kdi  = (int32_t)kd * ((yk_1 << 1) - yk - yk_2); // (Kc.Td/Ts).(2.y[k-1]-y[k]-y[k-2])
-    *uk += (int16_t)(kpi + kii + kdi);
-    // limit u[k] to lim and 0
-    if (*uk > lim)    *uk = lim;
-    else if (*uk < 0) *uk = 0;
-
+    if (ena)
+    {
+        kpi  = (int32_t)kc * (yk_1 - yk);               // Kc.(y[k-1]-y[k])
+        kii  = (int32_t)ki * (tset - yk);               // (Kc.Ts/Ti).e[k]
+        kdi  = (int32_t)kd * ((yk_1 << 1) - yk - yk_2); // (Kc.Td/Ts).(2.y[k-1]-y[k]-y[k-2])
+        *uk += (int16_t)(kpi + kii + kdi);
+        // limit u[k] to lim and 0
+        if (*uk > lim)    *uk = lim;
+        else if (*uk < 0) *uk = 0;
+    } // if
+    else *uk = 0;
+    
     yk_2  = yk_1; // y[k-2] = y[k-1]
     yk_1  = yk;   // y[k-1] = y[k]
 } // pid_ctrl()
