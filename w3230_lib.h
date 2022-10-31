@@ -46,11 +46,6 @@
 #define SP_ALARM_MIN_C	  (-400)
 #define SP_ALARM_MAX_C	  ( 400)
 
-// Default values
-#define DEFAULT_SP	   (200)
-#define DEFAULT_hy	    (10)
-#define DEFAULT_hy2	    (50)
-
 //---------------------------------------------------------------------------
 // Basic defines for EEPROM config addresses
 // One profile consists of several temp. time pairs and a final temperature.
@@ -111,7 +106,6 @@ enum e_item_type
 // rP	Ramping	                                      0 = off, 1 = on
 // CF	Set Celsius of Fahrenheit temperature display 0 = Celsius, 1 = Fahrenheit
 // Pb2	Enable 2nd temp probe for thermostat control  0 = off, 1 = on
-// HrS	Control and Times in minutes or hours	      0 = minutes, 1 = hours
 // Hc   Kc parameter for PID controller in %/°C       0..9999 
 // ti   Ti parameter for PID controller in seconds    0..9999 
 // td   Td parameter for PID controller in seconds    0..9999 
@@ -124,9 +118,9 @@ enum e_item_type
 // rn	Set run mode	                              Pr0 to Pr5 and th (6)
 //-----------------------------------------------------------------------------
 #define MENU_DATA(_) \
-	_(SP, 	LED_S, 	LED_P, 	LED_OFF, t_temperature,	DEFAULT_SP)	\
-	_(hy, 	LED_h, 	LED_y, 	LED_OFF, t_hyst_1,	DEFAULT_hy) 	\
-	_(hy2, 	LED_h, 	LED_y, 	LED_2, 	 t_hyst_2, 	DEFAULT_hy2)	\
+	_(SP, 	LED_S, 	LED_P, 	LED_OFF, t_temperature,	200)	        \
+	_(hy, 	LED_h, 	LED_y, 	LED_OFF, t_hyst_1,	5) 	        \
+	_(hy2, 	LED_h, 	LED_y, 	LED_2, 	 t_hyst_2, 	20)	        \
 	_(tc, 	LED_t, 	LED_c, 	LED_OFF, t_tempdiff,	-8)		\
 	_(tc2, 	LED_t, 	LED_c, 	LED_2, 	 t_tempdiff,	-1)		\
 	_(SA, 	LED_S, 	LED_A, 	LED_OFF, t_sp_alarm,	0)		\
@@ -137,7 +131,6 @@ enum e_item_type
 	_(rP, 	LED_r, 	LED_P, 	LED_OFF, t_boolean,	1)		\
 	_(CF, 	LED_C, 	LED_F, 	LED_OFF, t_boolean,	0)		\
 	_(Pb2, 	LED_P, 	LED_b, 	LED_2, 	 t_boolean,	0)		\
-	_(HrS, 	LED_H, 	LED_r, 	LED_S, 	 t_boolean,	1)		\
 	_(Hc, 	LED_H, 	LED_c, 	LED_OFF, t_parameter,	80)		\
 	_(Ti, 	LED_t, 	LED_I, 	LED_OFF, t_parameter,  140)		\
 	_(Td, 	LED_t, 	LED_d, 	LED_OFF, t_parameter,   10)		\
@@ -195,6 +188,24 @@ enum menu_enum
 #define ROW_TOP       (2)
 #define ROW_BOT       (3)
 
+// Defines for led_control() function
+#define LED_BLUE       (0)
+#define LED_RED        (1)
+
+#define FLED_OFF        (0)
+#define FLED_ON         (1)
+#define FLED_BLINK      (2) /* Blink every second */
+#define FLED_SLOW_BLINK (3) /* Blink every 2 seconds */
+
+// Values for temperature control STD
+#define STD_OFF      (0)
+#define STD_DLY_HEAT (1)
+#define STD_DLY_COOL (2)
+#define STD_HEATING  (3)
+#define STD_COOLING  (4)
+#define STD_ENV_COOL (5)
+#define STD_ENV_WARM (6)
+
 // Timers for state transition diagram. One-tick = 100 msec.
 #define TMR_POWERDOWN          (30)
 #define TMR_SHOW_PROFILE_ITEM  (15)
@@ -242,7 +253,9 @@ int16_t  range(int16_t x, int16_t min, int16_t max);
 int16_t  check_config_value(int16_t config_value, uint8_t eeadr);
 void     read_buttons(void);
 void     menu_fsm(void);
+void     led_control(bool led, uint8_t mode);
 void     temperature_control(int16_t temp);
+void     temperature_control2(int16_t temp);
 void     pid_control(int16_t temp);
 
 #endif

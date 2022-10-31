@@ -56,7 +56,6 @@ uint8_t  ret_state;                 // menustate to return to
 bool     menu_is_idle  = true;  // No menu active within STD
 bool     pwr_on        = true;  // True = power ON, False = power OFF
 bool     fahrenheit    = false; // false = Celsius, true = Fahrenheit
-bool     minutes       = false; // timing control: false = hours, true = minutes
 uint8_t  menu_item     = 0;     // Current menu-item: [0..NO_OF_PROFILES]
 uint8_t  config_item   = 0;     // Current index within profile or parameter menu
 uint8_t  m_countdown   = 0;     // Timer used within menu_fsm()
@@ -71,7 +70,7 @@ int16_t  pid_lim = 0;           // PID output upper limit in E-1 %
 bool     pid_ena = false;       // True = PID controller enabled
 int16_t  hysteresis;            // th-mode: hysteresis for temp probe ; pid-mode: lower hyst. limit in E-1 %
 int16_t  hysteresis2;           // th-mode: hysteresis for 2nd temp probe ; pid-mode: upper hyst. limit in E-1 %
-bool     logging = false;       // True = logging of PID info to UART
+uint8_t  std_tc = STD_OFF;      // State for Temperature Control
 
 // External variables, defined in other files
 extern bool     probe2;    // cached flag indicating whether 2nd probe is active
@@ -246,8 +245,8 @@ void value_to_led(int16_t value, uint8_t decimal, uint8_t row)
              of several temperature-time pairs. When a time-out occurs, the
              next temperature-time pair within that profile is selected.
              Updates are stored in the EEPROM configuration.
-             It is called once every hour on the hour or every minute.
-  Variables: minutes: timing control: false = hours, true = minutes
+             It is called once every hour on the hour
+  Variables: -
   Returns  : -
   ---------------------------------------------------------------------------*/
 void update_profile(void)
@@ -266,9 +265,7 @@ void update_profile(void)
     if (profile_no < THERMOSTAT_MODE) 
     {
         curr_step = eeprom_read_config(EEADR_MENU_ITEM(St));
-        if (minutes) // is timing-control in minutes?
-            curr_dur++;
-        else curr_dur = eeprom_read_config(EEADR_MENU_ITEM(dh)) + 1;
+        curr_dur  = eeprom_read_config(EEADR_MENU_ITEM(dh)) + 1;
         
         // Sanity check
         if(curr_step > NO_OF_TT_PAIRS-1) curr_step = NO_OF_TT_PAIRS - 1;
@@ -280,7 +277,6 @@ void update_profile(void)
         // Reached end of step?
         if (curr_dur >= profile_step_dur) 
         {   // Update setpoint with value from next step
-            if (minutes) setpoint = profile_next_step_sp;
             eeprom_write_config(EEADR_MENU_ITEM(SP), profile_next_step_sp);
             // Is this the last step (next step is number 9 or next step duration is 0)?
             if ((curr_step == NO_OF_TT_PAIRS-1) || eeprom_read_config(profile_step_eeaddr + 3) == 0) 
@@ -311,14 +307,9 @@ void update_profile(void)
             } // for
             sp >>= 6;
             // Update setpoint
-            if (minutes) // is timing-control in minutes?
-                setpoint = sp;
-            else eeprom_write_config(EEADR_MENU_ITEM(SP), sp);
+            eeprom_write_config(EEADR_MENU_ITEM(SP), sp);
         } // else if
-        if (!minutes)
-        {   // Update duration
-            eeprom_write_config(EEADR_MENU_ITEM(dh), curr_dur);
-        } // if
+        eeprom_write_config(EEADR_MENU_ITEM(dh), curr_dur);
     } // if
 } // update_profile()
 
@@ -513,9 +504,7 @@ void menu_fsm(void)
        case MENU_SHOW_STATE_DOWN_3: // Show current duration of running profile
             top_10 = LED_d; top_1 = LED_h; 
             top_01 = LED_OFF;
-            if (minutes) // is timing-control in minutes?
-                 value_to_led(curr_dur,LEDS_INT, ROW_BOT);
-            else value_to_led(eeprom_read_config(EEADR_MENU_ITEM(dh)),LEDS_INT,ROW_BOT);
+            value_to_led(eeprom_read_config(EEADR_MENU_ITEM(dh)),LEDS_INT,ROW_BOT);
             if(m_countdown == 0)
             {   // Time-Out
                 m_countdown = TMR_SHOW_PROFILE_ITEM;
@@ -633,7 +622,7 @@ void menu_fsm(void)
                         config_item = MENU_SIZE-1;
                     } // if
             chk_skip_menu_item: // label for goto
-                    if (!minutes && ((uint8_t)eeprom_read_config(EEADR_MENU_ITEM(rn)) >= THERMOSTAT_MODE))
+                    if ((uint8_t)eeprom_read_config(EEADR_MENU_ITEM(rn)) >= THERMOSTAT_MODE)
                     {
                         if (config_item == St)
                         {   // Skip current profile-step and duration
@@ -712,20 +701,12 @@ void menu_fsm(void)
                     if(config_item == rn)
                     {   // When setting run-mode, clear current step & duration
                         eeprom_write_config(EEADR_MENU_ITEM(St), 0);
-                        if (minutes)
-                             curr_dur = 0;
-                        else eeprom_write_config(EEADR_MENU_ITEM(dh), 0);
+                        eeprom_write_config(EEADR_MENU_ITEM(dh), 0);
                         if(config_value < THERMOSTAT_MODE)
                         {
                             eeadr_sp = EEADR_PROFILE_SETPOINT(((uint8_t)config_value), 0);
                             // Set initial value for SP
-                            if (minutes)
-                            {
-                                setpoint = eeprom_read_config(eeadr_sp);
-                                eeprom_write_config(EEADR_MENU_ITEM(SP), setpoint);
-                            } else {
-                                eeprom_write_config(EEADR_MENU_ITEM(SP), eeprom_read_config(eeadr_sp));
-                            } // else if
+                            eeprom_write_config(EEADR_MENU_ITEM(SP), eeprom_read_config(eeadr_sp));
                             // Hack in case inital step duration is '0'
                             if(eeprom_read_config(eeadr_sp+1) == 0)
                             {   // Set to thermostat mode
@@ -770,7 +751,7 @@ uint16_t min_to_sec(enum menu_enum x)
   ---------------------------------------------------------------------------*/
 void init_temp_delays(void)
 {
-    if (!minutes) setpoint = eeprom_read_config(EEADR_MENU_ITEM(SP));
+    setpoint    = eeprom_read_config(EEADR_MENU_ITEM(SP));
     hysteresis  = eeprom_read_config(EEADR_MENU_ITEM(hy));
     hysteresis2 = eeprom_read_config(EEADR_MENU_ITEM(hy2));
 
@@ -814,6 +795,51 @@ void enable_heating(void)
     } // else
 } // enable_heating()
 
+void led_control(bool led, uint8_t mode)
+{
+    static bool blsb = false; // blue led slow blink flag
+    static bool rlsb = false; // red led slow blink flag
+    
+    if (led == LED_BLUE)
+    {   // Blue Led
+        switch (mode) 
+        {
+            case FLED_ON:
+                LED_COOL_ON;
+                break;
+            case FLED_BLINK:
+                LED_COOL_INV;
+                break;
+            case FLED_SLOW_BLINK:
+                if (blsb) LED_COOL_INV;
+                blsb = !blsb;
+                break;
+            default: // FLED_OFF
+                LED_COOL_OFF;
+                break;
+        } // switch
+    } // if
+    else
+    {   // Red Led
+        switch (mode) 
+        {
+            case FLED_ON:
+                LED_HEAT_ON;
+                break;
+            case FLED_BLINK:
+                LED_HEAT_INV;
+                break;
+            case FLED_SLOW_BLINK:
+                if (rlsb) LED_HEAT_INV;
+                rlsb = !rlsb;
+                break;
+            default: // FLED_OFF
+                LED_HEAT_OFF;
+                break;
+        } // switch
+    } // else
+} // led_control()
+
 /*-----------------------------------------------------------------------------
   Purpose  : This routine controls the temperature setpoints. It should be 
              called once every second by ctrl_task().
@@ -849,6 +875,86 @@ void temperature_control(int16_t temp)
 } // temperature_control()
 
 /*-----------------------------------------------------------------------------
+  Purpose  : This routine controls the temperature setpoints. It should be 
+             called once every second by ctrl_task().
+  Variables: -
+  Returns  : -
+  ---------------------------------------------------------------------------*/
+void temperature_control2(int16_t temp)
+{
+    static bool    blsb = false; // blue led slow blink flag
+    static bool    rlsb = false; // red led slow blink flag
+    
+    setpoint    = eeprom_read_config(EEADR_MENU_ITEM(SP));
+    hysteresis  = eeprom_read_config(EEADR_MENU_ITEM(hy));
+    hysteresis2 = eeprom_read_config(EEADR_MENU_ITEM(hy2));
+    switch (std_tc)
+    {
+        case STD_OFF: // OFF
+            cooling_delay = min_to_sec(cd);
+            heating_delay = min_to_sec(hd);
+            RELAYS_OFF;   // Disable Cooling and Heating relays
+            LED_COOL_OFF; // disable both LEDs
+            LED_HEAT_OFF;
+            if (temp > setpoint + hysteresis)
+            {   // it is getting too warm
+                if (probe2 && (temp_ntc2 < setpoint - hysteresis2))
+                     std_tc = STD_ENV_COOL; // ambient temp. is cool enough
+                else std_tc = STD_DLY_COOL; // heating delay
+            } // if
+            else if (temp < setpoint - hysteresis)
+            {   // it is getting too cold
+                if (probe2 && (temp_ntc2 > setpoint + hysteresis2))
+                     std_tc = STD_ENV_WARM; // ambient temp. is warm enough
+                else std_tc = STD_DLY_HEAT; // heating delay
+            } // else if
+            break;
+        case STD_DLY_HEAT: // Heating Delay
+            LED_HEAT_INV; // Flash to indicate heating delay
+            if ((temp >= setpoint) || probe2) 
+                 std_tc = STD_OFF;     // OFF
+            else if (--heating_delay == 0)                        
+                 std_tc = STD_HEATING; // HEATING
+            break;
+        case STD_ENV_WARM: // Ambient temperature is high enough, no heating necessary
+            if (rlsb) LED_HEAT_INV;
+            rlsb = !rlsb;
+            if ((temp >= setpoint) || !probe2 || (temp_ntc2 < setpoint + hysteresis2)) 
+                 std_tc = STD_OFF;     // OFF
+            break;
+        case STD_DLY_COOL: // COOLING DELAY
+            LED_COOL_INV; // Flash to indicate cooling delay
+            if ((temp <= setpoint) || probe2) 
+                 std_tc = STD_OFF;     // OFF
+            else if (--cooling_delay == 0)  
+                 std_tc = STD_COOLING; // COOLING
+            break;
+        case STD_ENV_COOL: // Ambient temperature is low enough, no cooling necessary
+            if (blsb) LED_COOL_INV;
+            blsb = !blsb;
+            if ((temp <= setpoint) || !probe2 || (temp_ntc2 > setpoint - hysteresis2)) 
+                 std_tc = STD_OFF;     // OFF
+            break;
+        case STD_HEATING: // HEATING
+            LED_HEAT_ON;  // Heating LED on
+            HEAT_ON;      // Enable Heating
+            if (temp >= setpoint)
+                std_tc = STD_OFF; // OFF
+            else if (probe2 && (temp_ntc2 > (setpoint + hysteresis2)))
+                std_tc = STD_ENV_WARM;
+            break;
+        case STD_COOLING: // COOLING
+            LED_COOL_ON;  // Cooling LED on
+            COOL_ON;      // Enable Cooling
+            if (temp <= setpoint)
+                std_tc = STD_OFF; // OFF
+            else if  (probe2 && (temp_ntc2 < (setpoint - hysteresis2)))
+                std_tc = STD_ENV_COOL;
+            break;
+    } // switch
+} // temperature_control2()
+
+/*-----------------------------------------------------------------------------
   Purpose  : This routine controls the PID controller. It should be 
              called once every second by ctrl_task() as long as TS is not 0. 
              The PID controller itself is called every TS seconds and only
@@ -861,7 +967,6 @@ void temperature_control(int16_t temp)
 void pid_control(int16_t temp)
 {
     static uint8_t pid_tmr = 0;
-    char s[30];
     
     if (kc != eeprom_read_config(EEADR_MENU_ITEM(Hc)) ||
         ti != eeprom_read_config(EEADR_MENU_ITEM(Ti)) ||
@@ -884,13 +989,6 @@ void pid_control(int16_t temp)
     if (++pid_tmr >= ts) 
     {   // Call PID controller every TS seconds
         pid_ctrl(temp,&pid_out,setpoint,pid_lim,pid_ena);
-        if (logging)
-        {
-            sprintf(s,"%s,err=%d,",pid_ena ? "On" : "Off",setpoint-temp);
-            xputs(s);
-            sprintf(s,"p=%ld,i=%ld,d=%ld,t=%d\n",kpi,kii,kdi,pid_out);
-            xputs(s);
-        } // if
         pid_tmr = 0;
     } // if
 } // pid_control()

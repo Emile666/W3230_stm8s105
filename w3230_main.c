@@ -33,7 +33,7 @@
 #include "uart.h"
 
 // Version number for W3230 firmware
-char version[] = "W3230-stm8s105c6 V0.13\n";
+char version[] = "W3230-stm8s105c6 V0.14\n";
 
 // Global variables
 bool      ad_err1 = false; // used for adc range checking
@@ -60,7 +60,6 @@ extern uint8_t  top_10, top_1, top_01; // values of 10s, 1s and 0.1s
 extern uint8_t  bot_10, bot_1, bot_01; // values of 10s, 1s and 0.1s
 extern bool     pwr_on;           // True = power ON, False = power OFF
 extern uint8_t  sensor2_selected; // DOWN button pressed < 3 sec. shows 2nd temperature / pid_output
-extern bool     minutes;          // timing control: false = hours, true = minutes
 extern bool     menu_is_idle;     // No menus in STD active
 extern bool     fahrenheit;       // false = Celsius, true = Fahrenheit
 extern uint16_t cooling_delay;    // Initial cooling delay
@@ -70,6 +69,7 @@ extern uint8_t  ts;               // Parameter value for sample time [sec.]
 extern int16_t  pid_out;          // Output from PID controller in E-1 %
 extern uint32_t t2_millis;        // needed for delay_msec()
 extern uint8_t  rs232_inbuf[];
+extern uint8_t  std_tc;           // State for Temperature Control
 
 /*-----------------------------------------------------------------------------
   Purpose  : This routine multiplexes the 6 segments of the 7-segment displays.
@@ -335,9 +335,6 @@ void ctrl_task(void)
     if (eeprom_read_config(EEADR_MENU_ITEM(CF))) // true = Fahrenheit
          fahrenheit = true;
     else fahrenheit = false;
-    if (eeprom_read_config(EEADR_MENU_ITEM(HrS))) // true = hours
-         minutes = false; // control-timing is in hours 
-    else minutes = true;  // control-timing is in minutes
 
    // Start with updating the alarm
    // cache whether the 2nd probe is enabled or not.
@@ -357,10 +354,6 @@ void ctrl_task(void)
        cooling_delay = heating_delay = 60;
    } else {
        ALARM_OFF;   // reset the piezo buzzer
-//       if(((uint8_t)eeprom_read_config(EEADR_MENU_ITEM(rn))) < THERMOSTAT_MODE)
-//            led_e |=  LED_SET; // Indicate profile mode
-//       else led_e &= ~LED_SET;
- 
        ts        = eeprom_read_config(EEADR_MENU_ITEM(Ts));  // Read Ts [seconds]
        sa        = eeprom_read_config(EEADR_MENU_ITEM(SA));  // Show Alarm parameter
        fan_ctrl  = eeprom_read_config(EEADR_MENU_ITEM(FAn)); // 1 = use OW sensor for fan-control
@@ -380,9 +373,7 @@ void ctrl_task(void)
        } // if
        if (sa)
        {
-           if (minutes) // is timing-control in minutes?
-                diff = temp - setpoint;
-           else diff = temp - eeprom_read_config(EEADR_MENU_ITEM(SP));
+           diff = temp - eeprom_read_config(EEADR_MENU_ITEM(SP));
 
            if (diff < 0) diff = -diff;
 	   if (sa < 0)
@@ -398,7 +389,7 @@ void ctrl_task(void)
 	   } // if
        } // if
        // Thermostat control and PID-control
-       temperature_control(temp); // Run thermostat control logic
+       temperature_control2(temp); // Run thermostat control logic
        if (ts == 0) // PID Ts parameter is 0?
             pid_out = 0;          // Disable PID-output
        else pid_control(temp);    // Run PID controller in parallel with thermostat
@@ -444,24 +435,22 @@ void ctrl_task(void)
 /*-----------------------------------------------------------------------------
   Purpose  : This task is called every minute or every hour and updates the
              current running temperature profile.
-  Variables: minutes: timing control: false = hours, true = minutes
+  Variables: -
   Returns  : -
   ---------------------------------------------------------------------------*/
 void prfl_task(void)
 {
     static uint8_t min = 0;
-    
-    if (minutes)
-    {   // call every minute
-        update_profile();
+    char  s2[25];
+        
+    // Logging to ESP8266
+    sprintf(s2,"l%d %d %d %d %d\n",std_tc,temp_ntc1,temp_ntc2,temp1_ow_10,pid_out);
+    xputs(s2);
+    if (++min >= 60)
+    {   // call every hour
         min = 0;
-    } else {
-        if (++min >= 60)
-        {   // call every hour
-            min = 0;
-            update_profile(); 
-        } // if
-    } // else
+        update_profile(); 
+    } // if
 } // prfl_task();
 
 /*--------------------------------------------------------------------
