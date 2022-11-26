@@ -85,7 +85,7 @@ uint8_t rs232_command_handler(void)
         case '\r': break;
         case '\n': cmd_rcvd  = true;
                    rs232_inbuf[rs232_ptr] = '\0';
-                   rs232_ptr = false;
+                   rs232_ptr = 0;
                    break;
         default  : if (rs232_ptr < UART_BUFLEN-1)
                         rs232_inbuf[rs232_ptr++] = ch;
@@ -97,7 +97,9 @@ uint8_t rs232_command_handler(void)
     cmd_rcvd = false;
     return execute_single_command(rs232_inbuf);
   } // if
-  else return NO_ERR;
+  else if (rs232_ptr >= UART_BUFLEN-1) 
+       rs232_ptr = 0; // Reset if Buffer full and no command received
+  return NO_ERR; // Continu if Buffer not full and no command received
 } // rs232_command_handler()
 
 void print_value10(int16_t x)
@@ -139,6 +141,36 @@ uint8_t process_string(char *s, char *s1, uint16_t *d1, uint16_t *d2)
     *d2 = (uint16_t)strtol(&s[i+1],NULL,16); // data in hex
     return 3;
 } // process_string()
+
+/*-----------------------------------------------------------------------------
+  Purpose  : send the contents of a profile set or the parameters to the UART.
+  Variables: -
+  Returns  : -
+  ---------------------------------------------------------------------------*/
+void send_eep_block(uint8_t num)
+{
+    char     s[35], s1[10];
+    uint8_t  i,maxi,adr;
+    uint16_t val;
+	
+    maxi = ((num < NO_OF_PROFILES) ? PROFILE_SIZE : MENU_SIZE);
+    sprintf(s,"p%d ",num);
+    for (i = 0; i < maxi; i++)
+    {
+       adr = MI_CI_TO_EEADR(num,i);
+       val = eeprom_read_config(adr);
+       sprintf(s1,"%d",val);
+       if (i < maxi-1) strcat(s1,",");
+       strcat(s,s1);
+       if (strlen(s) > 25) 
+       {
+           xputs(s);
+           s[0] = '\0';
+       } // if
+    } // for i
+    strcat(s,"\n");
+    xputs(s);
+} // send_eep_block()
 
 /*-----------------------------------------------------------------------------
   Purpose: interpret commands which are received via the UART:
@@ -214,6 +246,12 @@ uint8_t execute_single_command(char *s)
    {  // single letter command
       switch (s[0])
       {
+       case 'p': // Request to send parameters or one of the profiles
+               if (num <= NO_OF_PROFILES)
+               {  // send Profile or parameters to the ESP8266 web-server
+                      send_eep_block(num);  
+               } // if
+               break;
        case 's': // System commands
                switch (num)
                {
@@ -234,9 +272,11 @@ uint8_t execute_single_command(char *s)
                         break;
                } // switch
                break;
+      case 'v': // A parameter of profile data-item has changed in the ESP8266 web-server
+               count = process_string(s,s3,&d1,&d2);
+               if (count > 1) eeprom_write_config(num,d1);
+               break;
       default: rval = ERR_CMD;
-	       sprintf(s2,"ERR.CMD[%s]\n",s);
-	       xputs(s2);
 	       break;
       } // switch
     } // else

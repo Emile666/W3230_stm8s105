@@ -30,7 +30,7 @@
 #define BAUDRATE      (57600L)
 #define UART_BUFLEN        (40)
 
-#define TX_BUF_SIZE (20)
+#define TX_BUF_SIZE (30)
 #define RX_BUF_SIZE (20)
 
 void    uart_init(void);

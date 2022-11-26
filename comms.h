@@ -28,6 +28,7 @@
 #define ERR_NUM	(0x02)
 
 void    i2c_scan(void);
+void    send_eep_block(uint8_t num);
 uint8_t rs232_command_handler(void);
 uint8_t execute_single_command(char *s);
 

@@ -5,23 +5,27 @@
 
 # Changelog
 
+2022-11-17: Interface with ESP8266 webserver added<br>
 2022-03-21:	First version of W3230 for STM8<br>
 
 # Features
 
 * Fahrenheit or Celsius display selectable with **CF** parameter
-* Minutes or hours time-base selectable with **Hrs** parameter
-* PID-controller selectable with adjustable **Kc**, **Ti**, **Td** and **Ts** parameters
+* PID-controller (for heating only) selectable with adjustable **Kc**, **Ti**, **Td** and **Ts** parameters
 * PID-output signal (slow PWM, T=12.5 sec) present at **SSR output** for connection to a Solid-State Relay (SSR) to control heating
-* Second temperature probe functionality selectable with **Pb2** parameter. If **Pb2** is set to 0, no second temperature probe is connected. With **Pb2** set to 1, the second temperature probe should measure the outside temperature. Used in thermostat control.
+* Configurable Power heating, ideal for conical fermenters to limit the amount of heating power
+* Second temperature probe functionality for measuring outside temperature. Used in thermostat control to prevent uneconomical heating/cooling cycles. 
+  If the outside temperature is warm enough, heating is not engaged. Same for cooling, if the outside temperature is cool enough, cooling is not engaged.
 * Up to 6 profiles with up to 10 setpoints and durations
 * Each setpoint can be held for 1-999 hours (i.e. up to ~41 days) or 1-999 minutes (i.e. up to ~16 hours)
-* Approximative ramping
+* Approximative ramping between setpoint temperatures
 * Somewhat intuitive menus for configuring
 * Separate delay settings for cooling and heating
 * Configurable hysteresis (allowable temp swing) from 0.0 to 2.5 °C or 0.0 to 5.0 °F
 * User definable alarm when temperature is out of or within range
 * Easy displaying of setpoint, thermostat/profile-mode, actual temperature (default), 2nd temperature and PID-output (%)
+* One-Wire temperature sensor added. This sensor controls a 3rd relay that can be used to switch a fan on/off
+* ESP8266 interface for displaying of temperatures and states on smartphone
 
 # Using the W3230-STM8 firmware
 
@@ -69,14 +73,9 @@ The settings menu has the following items:
 |tc|Set temperature correction|-5.0 to 5.0°C or -10.0 to 10.0°F|
 |tc2|Set temperature correction for 2nd temp probe|-5.0 to 5.0°C or -10.0 to 10.0°F|
 |SA|Setpoint alarm|0 = off, -40 to 40°C or -80 to 80°F|
-|St|Set current profile step|0 to 8|
-|dh|Set current profile duration|0 to 999 hours|
 |cd|Set cooling delay|0 to 60 minutes|
 |hd|Set heating delay|0 to 60 minutes|
-|rP|Ramping|0 = off, 1 = on|
 |cF|Celsius or Fahrenheit display|0 = Celsius, 1 = Fahrenheit|
-|Pb2|Enable second temp probe for use in thermostat control|0 = off, 1 = on|
-|HrS|Select Hours or Minutes time-base|0 = minutes, 1 = hours|
 |Hc|Kc parameter for PID-controller in %/°C|-9999 to 9999|
 |Ti|Ti parameter for PID-controller in seconds|0 to 9999|
 |Td|Td parameter for PID-controller in seconds|0 to 9999|
@@ -84,35 +83,28 @@ The settings menu has the following items:
 |FAn|Fan control enable|0 = off, 1 = on|
 |FLo|Hysteresis Lower-limit value for Fan control|-40 to 140 °C or -40 to 250°F|
 |FHI|Hysteresis Upper-limit value for Fan control|-40 to 140 °C or -40 to 250°F|
-|rn|Set run mode|Pr0 to Pr5 and th(ermostat)|
+|HPL|Heating Power Limit for SSR in Watts        | 0 to 9999 W|
+|HPt|Power Rating for heating element in Watts   | 0 to 9999 W|
+
 *Table 4: Settings sub-menu items*
 
 **Setpoint**, well... The desired temperature to keep. The way W3230-STM8 firmware works, setpoint is *always* the value the thermostat or the PID-controller strives towards, even when running a profile. What the profile does is simply setting the setpoint at any given time.
 
 **Hysteresis**: This parameter controls the allowable temperature range around the setpoint where the thermostat will not change state. For example, if temperature is greater than setpoint + hysteresis AND the time passed since last cooling cycle is greater than cooling delay, then cooling relay will be engaged. Once the temperature reaches setpoint again, cooling relay will be disengaged.
 
-**Hysteresis 2**, If **Pb2** is set to 1, temperature probe 2 should measure the environmental temperature. Now the allowable temperature range around the setpoint for temperature probe 2 is controlled. For example, if temperature 2 is less than **SP - hy2**, the cooling relay will cut out even if **SP - hy** has not been reached for temperature. Also, cooling will not be allowed again, until temperature 2 exceeds **SP - 0.5 \* hy2** (that is, it has regained at least half the hysteresis).<br>
-If **Pb2** is set to 2, then this parameter controls the compressor fan (which should be connected to the heater output). For example: if **Hysteresis 2** is set to 100 E-1 °C, the compressor fan is switched on when probe 2 temperature exceeds 35 °C (30 + **Hysteresis 2**/2) and switched off when probe 2 temperature is below 25 °C (30 - **Hysteresis 2**/2). Temperature probe 2 should in this case be attached to one of the compressor output pipes (which should get hot when the compressor is turned on).
+**Hysteresis 2**, temperature probe 2 should measure the environmental temperature. Now the allowable temperature range around the setpoint for temperature probe 2 is controlled. For example, if temperature 2 is less than **SP - hy2**, the cooling relay will remain off, even if temperature 1 is lower than **SP - hy**. Also, cooling will not be allowed again, until temperature 2 exceeds **SP - hy2** (that is, it has regained the hysteresis).<br>
 
-**Temperature correction**, will be added to the temperature sensor, this allows the user to calibrate the temperature reading. It is best to calibrate with a precision resistor of 10 k Ohms (1% tolerance). Replace the temperature sensor with such a resistor, let the W3230-STM8 run for at-least half an hour and adjust this parameter such that the temperature display is set to 25.0 °C.
+**Temperature correction**, will be added to temperature sensor 1, this allows the user to calibrate the temperature reading. It is best to calibrate with a precision resistor of 10 k Ohms (1% tolerance). Replace the temperature sensor with such a resistor, let the W3230-STM8 run for at-least half an hour and adjust this parameter such that the temperature display is set to 25.0 °C.
 
-**Temperature correction 2**, same as *temperature correction*, but for the second temperature probe. Enable this second temperaturesensor with the **Pb2** parameter.
+**Temperature correction 2**, same as *temperature correction*, but for the second temperature probe.
 
 **Setpoint alarm**, if setpoint alarm is greater than 0.0, then the alarm will sound once temperature differs from *SP* by more than *SA* degrees (this can be useful to warn against malfunctions, such as fridge door not closed or probe not attached to carboy). If *SA* is less than 0.0, then the alarm will sound if the temperature does **NOT** differ by more than (-) *SA* degrees (this could be used as an indication that wort has finally reached pitching temp). If *SA* is set to 0.0, the alarm will be disabled. If the alarm is tripped, then the buzzer will sound and the display will flash between temperature display and showing "SA", it will not however disengage the outputs and the unit will continue to work as normal. Please note, that care needs to be taken when running a profile (especially when not using ramping or with steep ramps) to allow for a sufficiently large margin, or the alarm could be tripped when setpoint changes.
-
-**Current profile step** and **current profile duration**, allows 'jumping' in the profile. Step and duration are updated automatically when running the profile, but can also be set manually at any time. Note that profile step and profile duration are the variables directly used to keep track of progress in a profile. Little or no validation is made of what values are entered. It is up to the user to know what he/she is doing by changing these values. Changing these values will not take effect until next point in profile is calculated, which could be as much as one hour. Every hour, current duration, *dh* (and if next step is reached, also current step, *St*) is updated with new value(s). That means in case of a power outage, STC-1000p-STM8 will pick up (to within the hour) from where it left off. Current profile step and current profile duration are only available in the menu when a profile is currently running.
 
 **Cooling** and **heating delay** is the minimum 'off time' for each relay, to spare the compressor and relays from short cycling. If the the temperature is too high or too low, but the delay has not yet been met, the corresponding LED (heating/cooling) will blink, indicating that the controller is waiting to for the delay to pass before it will start heating or cooling. When the controller is powered on, the initial delay (for both heating and cooling) will **always** be approximately 1 minute, regardless of the settings. That is because even if your system could tolerate no heating or cooling delays during normal control (i.e. *cd* and/or *hd* set to zero), it would be undesirable for the relay to rapidly turn on and off in the event of a power outage causing mains power to fluctuate. Both cooling and heating delays are loaded when either cooling/heating relays switched off. So, for instance if you set cooling delay to 60 minutes and setpoint is reached, turning cooling relay off, it will be approximately one hour until cooling relay will be allowed to switch on again, even if you change your mind and change the setting in EEPROM (i.e. it will not affect the current cycle).
 
 The delay can be used to prevent oscillation (hunting). For example, setting an appropriately long heating delay can prevent the heater coming on if the cooling cycle causes an undershoot that would otherwise cause heater to run. What is 'appropriate' depends on your setup.
 
-**Ramping** can be used to gradually increase the setpoint when going from one setpoint to another. See below for a more detailed explanation.
-
 **Celsius or Fahrenheit** can be used to set display mode for temperatures to Celsius or Fahrenheit. Note that the values stored in EEPROM are not directly changed with it, so if you change this, you need to make sure that the stored parameters are updated!
-
-**Second temperature probe** can be used to enable the second temperature probe. See below for a more detailed explanation.
-
-**Hours or Minutes** can be used to select between a time-mode in hours or minutes. Typically the minutes time-mode is selected when you want to control a brewing-session. When controlling a fermentation in a climate controlled chamber, you typically select hours.
 
 **Hc**, this is the proportional gain for the PID controller. The PID-controller only controls heating mode and this is in parallel with the thermostat mode (relays). So you have the choice of either controlling a heater with relays (on/off) or with a SSR.
 
@@ -127,6 +119,10 @@ The delay can be used to prevent oscillation (hunting). For example, setting an 
 **FLo**, the 3rd relay is switched off if the One-Wire temperaturesensor becomes lower than this value.
 
 **FHi**, the 3rd relay is switched off if the One-Wire temperaturesensor becomes higher than this value.
+
+**HPL**, the maximum power allowed for the electrical heating element. This is used to limit the PID-output, for example: HPL = 200 Watts and HPt = 500 Watts (the typical heating element in a Brewtools Conical Fermenter is 500 Watts). In this case, the PID-controller limits the output to 40 %, which corresponds to 200 Watts effectively.
+
+**HPt**, the total power of the electrical heating element in Watts. Used by the PID-controller, together with **HPL**.
 
 **Run mode**, selecting *Pr0* to *Pr5* will start the corresponding profile running from step 0, duration 0. Selecting *th* will switch to thermostat mode, the last setpoint from the previously running profile will be retained as the current setpoint when switching from a profile to thermostat mode.
 
@@ -154,17 +150,15 @@ For example: if the pid-output is equal to 200 (20.0 %), the output is low (0 V)
 
 ## Running profiles
 
-By entering the 'rn' submenu under settings and selecting a profile, the current duration, *dh*, and current step, *St*, is reset to zero and the initial setpoint for that profile, *SP0*, is loaded into *SP*. Even when running a profile, *SP* will always be the value the controller aims to keep. The profile simple updates *SP* during its course.
+By entering the 'rn' submenu under settings and selecting a profile, the initial setpoint for that profile, *SP0*, is loaded into *SP*. Even when running a profile, *SP* will always be the value the controller aims to keep. The profile simple updates *SP* during its course.
 
-From the instant the profile is started a timer will be running, and every time that timer indicates that one hour has passed, current duration, *dh*, will be incremented. If and only if, it has reached the current step duration, *dhx*, current duration will be reset to zero and the current step, *St*, will be incremented and the next setpoint in the profile will be loaded into *SP*.  Note that all this only happens on one hour marks after the profile is started.
+From the instant the profile is started a timer will be running, and every time that timer indicates that one hour has passed, the current duration *dh*, will be incremented. If and only if, it has reached the current step duration, *dhx*, current duration will be reset to zero and the current step *St*, will be incremented and the next setpoint in the profile will be loaded into *SP*.  Note that all this only happens on one hour marks after the profile is started.
 
 So, what will happen if the profile data is updated while the profile is running? Well, if that point has not been reached the data will be used. For example profile is running step 3 (with the first step being step 0). Then *SP3* has already been loaded into *SP*, so changing *SP0* - *SP3* will not have any effect on the current run. However, the duration *dh3* is still being evaluated every hour against the current duration, so changing it will have effect. 
 
-Changing the current duration, *dh*, and current step, *St*, will also have effect, but the change will not be immediate, only on the next one hour mark will these new values be used in the calculation. You will need to know what you are doing when changing these values manually, but correctly used, it could come in handy.
-
 Changing the setpoint, *SP*, when running a profile, will have immediate effect (as it is used by thermostat control), but it will be overwritten by profile when it reaches a new step.
 
-Once the profile reaches the final setpoint, *SP5*, or a duration of zero hours, it will switch over to thermostat mode and maintain the last known setpoint indefinitely.
+Once the profile reaches the final setpoint, *SP9*, or a duration of zero hours, it will switch over to thermostat mode and maintain the last known setpoint indefinitely.
 
 Finally, to stop a running profile, simply switch to thermostat mode.
 
@@ -184,12 +178,12 @@ Another tip would be to try to design your profiles with ramping in mind, if pos
 
 ## Using secondary temperature probe input
 
-The idea is to use the secondary temperature probe to measure the fridge air temperature or the temperature of a smaller thermal mass (water or sand) in the fridge. This should respond faster to the temperature fluctuations than the beer. By carefully limiting how far this temperature is allowed to deviate from the setpoint, it should be possible to limit the over/under-shoot that can occur as the heater/cooler continues to operate until the beer has reached the setpoint.<br>
-The correct value for **hy2** will be dependent of the specific setup (and also the *hy* value) and will need to be set by trial and error or by analyzing how much over/under-shoot is seen and how far off setpoint the fridge temperature will go. This is a double edged sword, you do not want to set too tight hysteresis for the second temp probe as it will put more stress on the compressor and may make it harder to reach setpoint. But you also want to constrain it enough to be effective. Err on the safe side to begin with (using a larger **hy2** setting) and constrain it more as needed.
+The idea is to use the secondary temperature probe to measure the outside or environmental temperature. This is especially economical for conical fermenters, because the actual temperature inside the fermenter will eventually converge to this environmental temperature. So if the outside temperature is low enough (lower than **SP - hy2**), the cooling relay will remain off.
+Same is true for heating: if the outside temperature is high enough, heating is not energised, even when the actual temperature has not reached **SP - hy** yet.<br>
+
+The correct value for **hy2** will be dependent of the specific setup (and also the *hy* value) and will typically be larger than the *hy* value.
 
 It should also be noted, that it would be a very good idea to make sure the two temperature probes are calibrated (at least in respect to each other) around the setpoint. See also table 4.
-
-To enable use of the second temp probe in the thermostat logic (i.e. to enable **hy2** limits on temperature2), set **Pb2** to 1. Even with with it disabled it is still possible to switch to display the second temperature input using a short press on the power button. 
 
 ## Additional features
 

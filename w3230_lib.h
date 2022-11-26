@@ -99,13 +99,9 @@ enum e_item_type
 // tc	Set temperature correction	              -5.0 to 5.0°C or -10.0 to 10.0°F
 // tc2	Set temperature correction for 2nd temp probe -5.0 to 5.0°C or -10.0 to 10.0°F
 // SA	Setpoint alarm	                              0 = off, -40 to 40°C or -80 to 80°F
-// St	Set current profile step	              0 to 8
-// dh	Set current profile duration	              0 to 999 hours
 // cd	Set cooling delay	                      0 to 60 minutes
 // hd	Set heating delay	                      0 to 60 minutes
-// rP	Ramping	                                      0 = off, 1 = on
 // CF	Set Celsius of Fahrenheit temperature display 0 = Celsius, 1 = Fahrenheit
-// Pb2	Enable 2nd temp probe for thermostat control  0 = off, 1 = on
 // Hc   Kc parameter for PID controller in %/°C       0..9999 
 // ti   Ti parameter for PID controller in seconds    0..9999 
 // td   Td parameter for PID controller in seconds    0..9999 
@@ -115,7 +111,6 @@ enum e_item_type
 // FHi  Higher-limit temperature for fan control      0.0 to 99.9 °C
 // HPL  Heating Power Limit for SSR in Watts          0 to 9999 W
 // HPt  Power Rating for heating element in Watts     0 to 9999 W
-// rn	Set run mode	                              Pr0 to Pr5 and th (6)
 //-----------------------------------------------------------------------------
 #define MENU_DATA(_) \
 	_(SP, 	LED_S, 	LED_P, 	LED_OFF, t_temperature,	200)	        \
@@ -124,13 +119,9 @@ enum e_item_type
 	_(tc, 	LED_t, 	LED_c, 	LED_OFF, t_tempdiff,	-8)		\
 	_(tc2, 	LED_t, 	LED_c, 	LED_2, 	 t_tempdiff,	-1)		\
 	_(SA, 	LED_S, 	LED_A, 	LED_OFF, t_sp_alarm,	0)		\
-	_(St, 	LED_S, 	LED_t, 	LED_OFF, t_step,	0)		\
-	_(dh, 	LED_d, 	LED_h, 	LED_OFF, t_duration,	0)		\
 	_(cd, 	LED_c, 	LED_d, 	LED_OFF, t_delay,	5)		\
 	_(hd, 	LED_h, 	LED_d, 	LED_OFF, t_delay,	2)		\
-	_(rP, 	LED_r, 	LED_P, 	LED_OFF, t_boolean,	1)		\
 	_(CF, 	LED_C, 	LED_F, 	LED_OFF, t_boolean,	0)		\
-	_(Pb2, 	LED_P, 	LED_b, 	LED_2, 	 t_boolean,	0)		\
 	_(Hc, 	LED_H, 	LED_c, 	LED_OFF, t_parameter,	80)		\
 	_(Ti, 	LED_t, 	LED_I, 	LED_OFF, t_parameter,  140)		\
 	_(Td, 	LED_t, 	LED_d, 	LED_OFF, t_parameter,   10)		\
@@ -142,13 +133,36 @@ enum e_item_type
 	_(HPt, 	LED_H, 	LED_P, 	LED_t,   t_parameter,	500)	        \
 	_(rn, 	LED_r, 	LED_u, 	LED_n,   t_runmode,     NO_OF_PROFILES)
 
+#define MENU_SIZE (19) /* Number of parameters in MENU_DATA */
+
+//-----------------------------------------------------------------------------
+// The data needed for the controller, but not shown in the 'Set' menu. 
+// Using x macros to generate the needed data structures, all menu configuration 
+// can be kept in this single place.
+//
+// The values are:
+// 	name, LED data 10, LED data 1, LED data 01, min value, max value, default value
+//
+// St	Set current profile step	              0 to 8
+// dh	Set current profile duration	              0 to 999 hours
+// rP	Ramping	                                      0 = off, 1 = on
+// Pb2	Enable 2nd temp probe for thermostat control  0 = off, 1 = on
+// rn	Set run mode	                              Pr0 to Pr5 and th (6)
+//-----------------------------------------------------------------------------
+#define HIDDEN_DATA(_) \
+	_(St, 	LED_S, 	LED_t, 	LED_OFF, t_step,	0)		\
+	_(dh, 	LED_d, 	LED_h, 	LED_OFF, t_duration,	0)		\
+	_(rP, 	LED_r, 	LED_P, 	LED_OFF, t_boolean,	1)		\
+	_(Pb2, 	LED_P, 	LED_b, 	LED_2, 	 t_boolean,	1)
+
 #define ENUM_VALUES(name,led10ch,led1ch,led01ch,type,default_value) name,
 #define EEPROM_DEFAULTS(name,led10ch,led1ch,led01ch,type,default_value) default_value,
 
 // Generate enum values for each entry int the set menu
 enum menu_enum 
 {
-    MENU_DATA(ENUM_VALUES) _last_
+    MENU_DATA(ENUM_VALUES)   
+    HIDDEN_DATA(ENUM_VALUES) _last_
 }; // menu_enum
 
 //---------------------------------------------------------------------------
@@ -162,8 +176,8 @@ enum menu_enum
 #define EEADR_MENU_ITEM(name)		        (EEADR_MENU + (name))
 // Help to convert menu item number and config item number to an EEPROM config address
 #define MI_CI_TO_EEADR(mi, ci)	                ((mi)*PROFILE_SIZE + (ci))
-// Set POWER_ON after LAST parameter (in this case rn)!
-#define EEADR_POWER_ON				(EEADR_MENU_ITEM(rn) + 1)
+// Set POWER_ON after LAST parameter (in this case Pb2)!
+#define EEADR_POWER_ON				(EEADR_MENU_ITEM(Pb2) + 1)
 
 // These are the bit-definitions in _buttons
 #define BTN_UP	 (0x88)

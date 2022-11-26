@@ -33,7 +33,7 @@
 #include "uart.h"
 
 // Version number for W3230 firmware
-char version[] = "W3230-stm8s105c6 V0.14\n";
+char version[] = "W3230-stm8s105c6 V0.15\n";
 
 // Global variables
 bool      ad_err1 = false; // used for adc range checking
@@ -444,7 +444,7 @@ void prfl_task(void)
     char  s2[25];
         
     // Logging to ESP8266
-    sprintf(s2,"l%d %d %d %d %d\n",std_tc,temp_ntc1,temp_ntc2,temp1_ow_10,pid_out);
+    sprintf(s2,"l%d %d %d %d %d\n",std_tc,temp_ntc1,temp_ntc2,temp1_ow_10,setpoint);
     xputs(s2);
     if (++min >= 60)
     {   // call every hour
@@ -494,7 +494,6 @@ void one_wire_task(void)
   ---------------------------------------------------------------------------*/
 int main(void)
 {
-    char    s[30];      // Needed for xputs() and sprintf()
     int8_t  ok;
     
     __disable_interrupt();
@@ -525,9 +524,7 @@ int main(void)
         switch (rs232_command_handler()) // run command handler continuously
         {
             case ERR_CMD: xputs("Cmd Error\n"); break;
-            case ERR_NUM: sprintf(s,"Nr Error (%s)\n",rs232_inbuf);
-                          xputs(s);  
-                          break;
+            case ERR_NUM: xputs("Num Error\n");  break;
             default     : break;
         } // switch
     } // while

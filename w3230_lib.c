@@ -42,7 +42,9 @@ __root __eeprom const int16_t eedata[] =
    160, 24, 170, 24, 180, 24, 190, 24, 200, 144, 250, 48, 40, 0, 0, 0, 0, 0, 0, // Pr3 (SP0, dh0, ..., dh8, SP9)
    160, 24, 170, 24, 180, 24, 190, 24, 200, 144, 250, 48, 40, 0, 0, 0, 0, 0, 0, // Pr4 (SP0, dh0, ..., dh8, SP9)
    160, 24, 170, 24, 180, 24, 190, 24, 200, 144, 250, 48, 40, 0, 0, 0, 0, 0, 0, // Pr5 (SP0, dh0, ..., dh8, SP9)
-   MENU_DATA(EEPROM_DEFAULTS) 1 // Last one is for POWER_ON
+   MENU_DATA(EEPROM_DEFAULTS) 
+   HIDDEN_DATA(EEPROM_DEFAULTS)
+   1 // Last one is for POWER_ON
 }; // eedata[]
 
 // Global variables to hold LED data (for multiplexing purposes)
@@ -56,7 +58,7 @@ uint8_t  ret_state;                 // menustate to return to
 bool     menu_is_idle  = true;  // No menu active within STD
 bool     pwr_on        = true;  // True = power ON, False = power OFF
 bool     fahrenheit    = false; // false = Celsius, true = Fahrenheit
-uint8_t  menu_item     = 0;     // Current menu-item: [0..NO_OF_PROFILES]
+uint8_t  menu_item     = 6;     // Current menu-item: [0..NO_OF_PROFILES]
 uint8_t  config_item   = 0;     // Current index within profile or parameter menu
 uint8_t  m_countdown   = 0;     // Timer used within menu_fsm()
 uint8_t  _buttons      = 0;     // Current and previous value of button states
@@ -90,7 +92,6 @@ const struct s_menu menu[] =
 {
     MENU_DATA(TO_STRUCT)
 }; // menu[]
-#define MENU_SIZE (sizeof(menu)/sizeof(menu[0]))
 
 /*-----------------------------------------------------------------------------
   Purpose  : This routine does a divide by 10 using only shifts
@@ -910,26 +911,30 @@ void temperature_control2(int16_t temp)
             } // else if
             break;
         case STD_DLY_HEAT: // Heating Delay
-            LED_HEAT_INV; // Flash to indicate heating delay
-            if ((temp >= setpoint) || probe2) 
+            RELAYS_OFF;    // Disable Cooling and Heating relays
+            LED_HEAT_INV;  // Flash to indicate heating delay
+            if (temp >= setpoint) 
                  std_tc = STD_OFF;     // OFF
             else if (--heating_delay == 0)                        
                  std_tc = STD_HEATING; // HEATING
             break;
         case STD_ENV_WARM: // Ambient temperature is high enough, no heating necessary
+            RELAYS_OFF;    // Disable Cooling and Heating relays
             if (rlsb) LED_HEAT_INV;
             rlsb = !rlsb;
             if ((temp >= setpoint) || !probe2 || (temp_ntc2 < setpoint + hysteresis2)) 
                  std_tc = STD_OFF;     // OFF
             break;
         case STD_DLY_COOL: // COOLING DELAY
-            LED_COOL_INV; // Flash to indicate cooling delay
-            if ((temp <= setpoint) || probe2) 
+            RELAYS_OFF;    // Disable Cooling and Heating relays
+            LED_COOL_INV;  // Flash to indicate cooling delay
+            if (temp <= setpoint) 
                  std_tc = STD_OFF;     // OFF
             else if (--cooling_delay == 0)  
                  std_tc = STD_COOLING; // COOLING
             break;
         case STD_ENV_COOL: // Ambient temperature is low enough, no cooling necessary
+            RELAYS_OFF;    // Disable Cooling and Heating relays
             if (blsb) LED_COOL_INV;
             blsb = !blsb;
             if ((temp <= setpoint) || !probe2 || (temp_ntc2 > setpoint - hysteresis2)) 
